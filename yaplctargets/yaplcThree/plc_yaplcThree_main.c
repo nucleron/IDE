@@ -173,9 +173,11 @@ __attribute__ ((section(".plc_app_abi_sec"))) plc_app_abi_t plc_yaplc_app =
     .check_id  = plc_check_md5,
 
     //Must be run on compatible RTE
-    .rte_ver_major = 3,
+    .rte_ver_major = 4,
     .rte_ver_minor = 0,
     .rte_ver_patch = 0,
+    
+    .hw_id = 242,
     //IO manager interface
     .l_tab = &plc_loc_table[0],
     .w_tab = &plc_loc_weigth[0],
