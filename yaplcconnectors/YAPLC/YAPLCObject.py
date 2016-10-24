@@ -88,6 +88,9 @@ class YAPLCObject():
         if self.MatchMD5(md5sum) == False:
             res = None;
             failure = None;
+            
+            self.HandleSerialTransaction(SETRTCTransaction())
+            
             self.confnodesroot.logger.write_warning(
                 _("Will now upload firmware to PLC.\nThis may take some time, don't close the program.\n"))
             self.TransactionLock.acquire()

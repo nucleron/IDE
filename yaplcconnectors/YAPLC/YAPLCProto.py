@@ -7,6 +7,7 @@
 import ctypes
 import exceptions
 import time
+import datetime
 
 import YaPySerial
 
@@ -202,6 +203,22 @@ class RESET_LOGCOUNTSTransaction(YAPLCTransaction):
     def __init__(self):
         YAPLCTransaction.__init__(self, 0x69)
 
+class SETRTCTransaction(YAPLCTransaction):
+    def __init__(self):
+        YAPLCTransaction.__init__(self, 0x6b)
+        dt = datetime.datetime.now()
+        
+        year = dt.year%100
+        year   = ctypes.string_at(ctypes.pointer(ctypes.c_uint8(year))       ,1)
+        mon    = ctypes.string_at(ctypes.pointer(ctypes.c_uint8(dt.month))   ,1)
+        day    = ctypes.string_at(ctypes.pointer(ctypes.c_uint8(dt.day))     ,1)
+        hour   = ctypes.string_at(ctypes.pointer(ctypes.c_uint8(dt.hour))    ,1)
+        minute = ctypes.string_at(ctypes.pointer(ctypes.c_uint8(dt.minute))  ,1)
+        second = ctypes.string_at(ctypes.pointer(ctypes.c_uint8(dt.second))  ,1)
+        self.Data = year+mon+day+hour+minute+second
+
+    def ExchangeData(self):
+        self.SendData(self.Data)
 
 if __name__ == "__main__":
 
