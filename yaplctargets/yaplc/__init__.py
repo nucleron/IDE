@@ -19,8 +19,9 @@ class yaplc_target(toolchain_yaplc):
         #self.cflags.append("-I\"" + libopencm3_inc_dir + "\"")
 
         #Needed for plc_main.c
-        plc_rt_dir = os.path.join(os.path.join(base_dir, "RTE"), "src")
-        
+        plc_yaplc_dir = os.path.join(base_dir, "yaplc")
+        plc_src_dir = os.path.join(plc_yaplc_dir, "src")
+        plc_rt_dir = os.path.join(plc_src_dir, "plc_runtime")
         self.cflags.append("-I\"" + plc_rt_dir + "\"")
         self.cflags.append("-DPLC_RTE_ADDR=" + target_runtime_addr)
 
@@ -39,7 +40,9 @@ class yaplc_target(toolchain_yaplc):
         return toolchain_yaplc.build(self)
 
     def GetBinaryCode(self):
-        yaplc_boot_loader = os.path.join(os.path.join(base_dir, "stm32flash"), "stm32flash")
+
+        yaplc_tools_dir = os.path.join(base_dir, "yaplc")
+        yaplc_boot_loader = os.path.join(yaplc_tools_dir, "stm32flash")
 
         command = [yaplc_boot_loader, "-w", toolchain_yaplc.GetBinaryCode(self) + ".hex", "-v", "-g", "0x0", "-S",
                    target_load_addr, "%(serial_port)s"]
