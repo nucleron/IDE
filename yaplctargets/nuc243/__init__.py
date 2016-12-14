@@ -1,7 +1,7 @@
 import os, sys, shutil
 from ..toolchain_yaplc import toolchain_yaplc
 
-target_load_addr    = "0x08010000"
+target_load_addr    = "0x08008000"
 target_runtime_addr = "0x08000184"
 
 target_dir = os.path.dirname(os.path.realpath(__file__))
