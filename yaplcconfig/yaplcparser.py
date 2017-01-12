@@ -4,6 +4,17 @@ import os
 from string import find
 from string import split
 
+"""
+TODO: Syntax extensions
+1. Enumerated parameters split by ',' sign placed inside square brackets.
+2. Regions doesn't generate all values when created, but operates with min/max ranges.
+3. Single value parameters interprets like a group id.
+4. Range group parameters interprets like a tuple of groups.
+5. Text labels are enclosed with quotes inside square brackets after value split by a column from value.
+6. Correct group id detection.
+7. Use meta-class to create more accurate and extensible parameters class.
+8. Locations may have descriptive name. Optional for plain locations and required for parametrized.
+"""
 
 """
 YAPLC locations: Input, Memory, Output(Q)
@@ -14,6 +25,15 @@ YAPLCLocationTypes = ['I', 'M', 'Q']
 YAPLC locations data types: bool, byte, word, double-word, long, string
 """
 YAPLCLocationDataTypes = ['X', 'B', 'W', 'D', 'L', 'S']
+
+"""
+YAPLC location parameter types
+"""
+YAPLCParameterType = {'Number': 0, 'Range': 1, 'Items': 2}
+
+"""
+"""
+YAPLCNameIllegal = ['.', ',', '"', '*', ':', '#', '@', '!', '(', ')', '{', '}']
 
 
 class ParseError(BaseException):
@@ -26,43 +46,63 @@ class ParseError(BaseException):
         return self._message
 
 
-class YAPLCLocation:
+class YAPLCLocationBase:
 
-    def __init__(self, typestr, gid, unique=False, *args):
-
-        self._parameters = dict()
+    def __init__(self):
+        self._parameters = list()
         self._parametrized = False
 
-        def addParameters(values, pcount, name=""):
-            if find(values, '..') < 0:
-                self._parameters[pcount] = {"name": name,
-                                            "values": values
-                                            }
-            else:
-                # range of channels
-                bounds = split(values, '..')
+    def addParameters(self, values, name=""):
 
-                if len(bounds) != 2:
-                    raise ParseError(_("Wrong range syntax"))
+        if find(values, '..') >= 0:
+            # range of channels
+            bounds = split(values, '..')
 
-                if not bounds[0].isdigit() or not bounds[1].isdigit():
-                    raise ParseError(_("Incorrect bounds format %s..%s") % bounds[0] % bounds[1])
+            if len(bounds) != 2:
+                raise ParseError(_("Wrong range syntax"))
 
-                lbound = int(bounds[0])
-                rbound = int(bounds[1]) + 1  # to include right-most value of range
+            if not bounds[0].isdigit() or not bounds[1].isdigit():
+                raise ParseError(_("Incorrect bounds format %s..%s") % bounds[0] % bounds[1])
 
-                if lbound < 0 or rbound < 0 or lbound > rbound:
-                    raise ParseError(_("Incorrect bounds format %s..%s") % bounds[0] % bounds[1])
+            lbound = int(bounds[0])
+            rbound = int(bounds[1])
 
-                vals = list()
-                for index in range(lbound, rbound):
-                    vals.append(index)
+            self._parameters.append({"name": name,
+                                     "type": 'Range',
+                                     "min": lbound,
+                                     "max": rbound
+                                     })
 
-                self._parameters[pcount] = {"name": name,
-                                            "values": vals
-                                            }
+        elif find(values, ',') >= 0:
+            items = split(values, ',')
 
-        pcount = 0
+            self._parameters.append({"name": name,
+                                     "type": 'Items',
+                                     "items": items
+                                     })
+        else:
+            self._parameters.append({"name": name,
+                                     "type": 'Number',
+                                     "value": values
+                                     })
+
+    def parameters(self):
+        return self._parameters
+
+    def parametrized(self):
+        return self._parametrized
+
+
+class YAPLCLocation(YAPLCLocationBase):
+    """
+    YAPLC location abstraction to represent an location described by syntax
+    """
+
+    def __init__(self, typestr, group, unique=False, *args):
+
+        YAPLCLocationBase.__init__(self)
+
+        self._descriptive = None
 
         if len(typestr) != 2:
             raise ParseError(_("Incorrect type coding %s") % typestr)
@@ -83,21 +123,23 @@ class YAPLCLocation:
                 param = str(p).rstrip(']').lstrip('[')
                 name, value = param.split(':')
                 # print name, value
-                addParameters(value, pcount, name)
-                pcount += 1
+                self.addParameters(value, name)
                 self._parametrized = True
-
+                if not self._descriptive:
+                    raise ParseError(_("Parametrized locations requires descriptive name"))
+            elif str(p).startswith('"'):
+                # descriptive name of location
+                self._descriptive = str(p).rstrip('"').lstrip('"')
+                if any(s in self._descriptive for s in YAPLCNameIllegal):
+                    raise ParseError(_("Illegal symbol in group's name: %s") % self._descriptive)
             elif str(p).isdigit():
-                addParameters(p, pcount)
-                pcount += 1
+                self.addParameters(p)
             else:
-                # this is the range
-                addParameters(p, pcount)
-                pcount += 1
+                # this is the unnamed range or items
+                self.addParameters(p)
 
         self._unique = unique
-        # self._postfixes = list(args)
-        self._gid = gid  # group ID
+        self._group = group  # group to this location
 
     def type(self):
         return self._type
@@ -105,74 +147,50 @@ class YAPLCLocation:
     def datatype(self):
         return self._datatype
 
-    def parameters(self):
-        return self._parameters
-
     def unique(self):
         return self._unique
 
-    def parametrized(self):
-        return self._parametrized
+    def descriptive(self):
+        return self._descriptive
 
     def __str__(self):
-        return '{0} {1}'.format(self._type, self._datatype)
+        return '{0}{1}'.format(self._type, self._datatype)
 
     def name(self):
-        return '{0}{1}{2}'.format(self._type, self._datatype, self._gid)
+        return self.__str__()
 
     def __repr__(self):
         return self.__str__()
 
 
-class YAPLCGroup:
+class YAPLCGroup(YAPLCLocationBase):
+    """
+    YAPLC group abstraction allow to store info about group extracted from DSL
+    """
 
-    def __init__(self, name, gid=None, unique=False, parent=None, *args):
+    def __init__(self, name, values=None, unique=False, parent=None, *args):
 
-        self._parameters = dict()
-        self._parametrized = False
-
-        def setGroupParameter(values, name):
-            if find(values, '..') < 0:
-                self._groupid = {"name": name,
-                                 "values": values
-                                 }
-            else:
-                # range of channels
-                bounds = split(values, '..')
-
-                if len(bounds) != 2:
-                    raise ParseError(_("Wrong range syntax"))
-
-                if not bounds[0].isdigit() or not bounds[1].isdigit():
-                    raise ParseError(_("Incorrect bounds format %s..%s") % bounds[0] % bounds[1])
-
-                lbound = int(bounds[0])
-                rbound = int(bounds[1]) + 1  # to include right-most value of range
-
-                if lbound < 0 or rbound < 0 or lbound > rbound:
-                    raise ParseError(_("Incorrect bounds format %s..%s") % bounds[0] % bounds[1])
-
-                vals = list()
-                for index in range(lbound, rbound):
-                    vals.append(index)
-
-                self._groupid = {"name": name,
-                                 "values": vals
-                                 }
+        YAPLCLocationBase.__init__(self)
 
         self._name = str(name).rstrip('"').lstrip('"')
 
-        if str(gid).startswith('['):
-            param = str(gid).rstrip(']').lstrip('[')
-            name, value = param.split(':')
-            setGroupParameter(value, name)
-            self._parametrized = True
-        else:
-            self._groupid = gid
+        if any(s in self._name for s in YAPLCNameIllegal):
+            raise ParseError(_("Illegal symbol in group's name: %s") % self._name)
+
+        if len(values) > 1:
+            raise ParseError(_("Too many parameters for group: %s") % self._name)
+
+        for v in values:
+            if str(v).startswith('['):
+                param = str(v).rstrip(']').lstrip('[')
+                name, value = param.split(':')
+                self.addParameters(value, name)
+                self._parametrized = True
+            else:
+                self.addParameters(v)
 
         self._unique = unique
         self._locations = list()
-        # support for nested groups
         self._parent = parent
         self._children = list()
 
@@ -180,7 +198,7 @@ class YAPLCGroup:
         return self._name
 
     def group(self):
-        return self._groupid
+        return None
 
     def append(self, location):
         self._locations.append(location)
@@ -190,7 +208,7 @@ class YAPLCGroup:
 
     def getlocation(self, name):
         for loc in self._locations:
-            if loc.name() == name:
+            if loc.name() == name or loc.descriptive() == name:
                 return loc
 
         return None
@@ -204,13 +222,12 @@ class YAPLCGroup:
     def parent(self):
         return self._parent
 
-    def parametrized(self):
-        return self._parametrized
-
     def hasParametrized(self):
         for child in self._children:
             if child.parametrized():
                 return True
+            else:
+                return child.hasParametrized()
 
         for loc in self._locations:
             if loc.parametrized():
@@ -219,7 +236,6 @@ class YAPLCGroup:
         return False
 
     def addsubgroup(self, group):
-        # TODO: refactor this to make unique locations protection available
         self._children.append(group)
 
 
@@ -240,7 +256,7 @@ class YAPLCConfigParser:
             while True:
                 nextchar = self.instream.read(1)
                 if nextchar == '\n':
-                    self.lineno = self.lineno + 1
+                    self.lineno += 1
                 if self.debug >= 3:
                     print "shlex: in state", repr(self.state), \
                         "I see character:", repr(nextchar)
@@ -260,7 +276,7 @@ class YAPLCConfigParser:
                             continue
                     elif nextchar in self.commenters:
                         self.instream.readline()
-                        self.lineno = self.lineno + 1
+                        self.lineno += 1
                     elif self.posix and nextchar in self.escape:
                         escapedstate = 'a'
                         self.state = nextchar
@@ -350,7 +366,7 @@ class YAPLCConfigParser:
                             continue
                     elif nextchar in self.commenters:
                         self.instream.readline()
-                        self.lineno = self.lineno + 1
+                        self.lineno += 1
                         if self.posix:
                             self.state = ' '
                             if self.token or (self.posix and quoted) or (self.posix and enclosed):
@@ -394,7 +410,7 @@ class YAPLCConfigParser:
         """
         lexer = YAPLCConfigParser.yaplcparser(line)
         lexer.commenters = '#'
-        lexer.wordchars += '.():'
+        lexer.wordchars += '.():,'
 
         return list(lexer)
 
@@ -463,16 +479,23 @@ class YAPLCConfigParser:
 
                         if tokens:
                             if tokens[0] == 'UGRP' or tokens[0] == 'GRP':
+                                rest = []
+
+                                if len(tokens) < 3:
+                                    raise ParseError("Arguments number for group less than required")
+                                elif len(tokens) >= 3:
+                                    rest = tokens[2:]
+
                                 # begin of the unique group/end of previous
                                 if tokens[1] in self._groups:
                                     if self._groups[tokens[1]].unique():
                                         raise ParseError(_("Has the same unique group %s") % tokens[1])
 
                                 if currentGroup is not None:
-                                    grp = YAPLCGroup(tokens[1], tokens[2], (tokens[0] == 'UGRP'), currentGroup)
+                                    grp = YAPLCGroup(tokens[1], rest, (tokens[0] == 'UGRP'), currentGroup)
                                     currentGroup.addsubgroup(grp)
                                 else:
-                                    grp = YAPLCGroup(tokens[1], tokens[2], (tokens[0] == 'UGRP'))
+                                    grp = YAPLCGroup(tokens[1], rest, (tokens[0] == 'UGRP'), None)
                                     self.addgroup(grp)  # also add to flat root groups table
 
                                 currentGroup = grp
@@ -482,11 +505,11 @@ class YAPLCConfigParser:
                                 if currentGroup is None:
                                     raise ParseError(_("Location %s without group") % tokens[0])
                                 if currentGroup.unique():
-                                    loc = YAPLCLocation(tokens[1], currentGroup.group(),
+                                    loc = YAPLCLocation(tokens[1], currentGroup,
                                                         (tokens[0] == 'ULOC'), *tokens[2:])
                                 else:
                                     # non-unique group could have no GID and parameters only
-                                    loc = YAPLCLocation(tokens[1], currentGroup.parent().group(),
+                                    loc = YAPLCLocation(tokens[1], currentGroup,
                                                         (tokens[0] == 'ULOC'), *tokens[2:])
                                 currentGroup.append(loc)
 
@@ -498,7 +521,7 @@ class YAPLCConfigParser:
                                 currentGroup = currentGroup.parent()
 
                             else:
-                                pass
+                                raise ParseError(_("Illegal instruction: %s") % tokens[0])
 
                     if currentGroup is not None:
                         raise ParseError(_("Group %s has not been closed properly!") % currentGroup.name())
@@ -510,9 +533,12 @@ class YAPLCConfigParser:
 if __name__ == '__main__':
     parser = YAPLCConfigParser()
     path = os.path.join(os.path.dirname(__file__),
-                        '..', 'yaplctargets', 'yaplcThree',
+                        '..', 'yaplctargets', 'nuc247',
                         r'extensions.cfg')
-    parser.fparse(path)
+    try:
+        parser.fparse(path)
+    except ParseError as pe:
+        print pe.message()
 
     for grp in parser.groups():
         print grp

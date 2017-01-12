@@ -35,13 +35,15 @@ from ConfigTreeNode import XSDSchemaErrorMessage
 from CodeFileTreeNode import CodeFile
 from YAPLCConfigEditor import YAPLCConfigEditor
 from yaplcparser import YAPLCConfigParser
+from yaplcparser import YAPLCParameterType
 from PLCControler import LOCATION_CONFNODE, LOCATION_VAR_INPUT, LOCATION_VAR_OUTPUT, LOCATION_VAR_MEMORY, LOCATION_GROUP
 from yaplcparser import ParseError
 from editors.ConfTreeNodeEditor import ConfTreeNodeEditor
+from itertools import product
 import shutil
 
 
-def Warn(parent, message, caption = 'Warning!'):
+def Warn(parent, message, caption='Warning!'):
     dlg = wx.MessageDialog(parent, message, caption, wx.OK | wx.ICON_WARNING)
     dlg.ShowModal()
     dlg.Destroy()
@@ -95,29 +97,71 @@ LOC_SECTION_RESTRICTION_TAG_ELEMENT = """<xsd:attribute name="%(name)s" %(opt)s>
                     </xsd:restriction>
                 </xsd:simpleType>
             </xsd:attribute>\n"""
+LOC_SECTION_ENUMERATION = """<xsd:enumeration value="%s"/>\n"""
+LOC_SECTION_ENUMERATION_TAG_ELEMENT = """<xsd:attribute name="%(name)s" %(opt)s>
+                                    <xsd:simpleType>
+                                        <xsd:restriction base="xsd:string">
+                                            %(enumerations)s
+                                        </xsd:restriction>
+                                    </xsd:simpleType>
+                                </xsd:attribute>\n"""
+
+
+def PrepareParametrizedXSDNode(name, base, node):
+    """
+    Prepare XSD scheme for location with variable parameters
+    :param name: Name of the node
+    :param base: Base class for the node
+    :param node: Parent node
+    :return: Prepared XSD node class
+    """
+    params = ''
+    for p in node.parameters():
+        if not p['name']:
+            continue
+
+        if p['type'] == 'Range':
+            params += LOC_SECTION_RESTRICTION_TAG_ELEMENT % ({'name': p['name'],
+                                                              'opt': 'use="required"',
+                                                              'min': p['min'],
+                                                              'max': p['max']
+                                                              }
+                                                             )
+
+        elif p['type'] == 'Items':
+            enums = ""
+            for item in p['items']:
+                enums += LOC_SECTION_ENUMERATION % item
+
+            params += LOC_SECTION_ENUMERATION_TAG_ELEMENT % ({'name': p['name'],
+                                                              'opt': 'use="required"',
+                                                              'enumerations': enums
+                                                              })
+
+        elif p['type'] == 'Number':
+            params += LOC_SECTION_TAG_ELEMENT % (p['name'], 'xsd:integer', 'use="required"')
+
+    attributes = {
+        'name': str(base.__name__),
+        'attributes': params
+    }
+
+    xsd = XSD_LOCATIONS_GROUP % attributes
+    newNode = type(str(base.__name__) + str(name) + node.name(), (base,), {'XSD': xsd, })
+
+    return newNode
 
 
 def CreateLocationClass(name, base, node):
+    """
+    Creates location class
+    :param name: Name of location
+    :param base: Base class of location
+    :param node: Parent node of location
+    :return: Prepared XSD class for location
+    """
     if node.parametrized():
-        params = ''
-        for p in node.parameters().values():
-            if len(p['values']) > 1:
-                params += LOC_SECTION_RESTRICTION_TAG_ELEMENT % ({'name': p['name'],
-                                                                  'opt': 'use="required"',
-                                                                  'min': p['values'][0],
-                                                                  'max': p['values'][-1]
-                                                                  }
-                                                                 )
-            else:
-                params += LOC_SECTION_TAG_ELEMENT % (p['name'], 'xsd:integer', 'use="required"')
-
-        attributes = {
-                      'name': str(base.__name__),
-                      'attributes': params
-                      }
-
-        xsd = XSD_LOCATIONS_GROUP % attributes
-        newNode = type(str(base.__name__) + str(name) + node.name(), (base,), {'XSD': xsd, })
+        newNode = PrepareParametrizedXSDNode(name, base, node)
         setattr(newNode, 'IconFileName', 'YAPLCConfigurableLocation')
     else:
         newNode = None
@@ -126,25 +170,15 @@ def CreateLocationClass(name, base, node):
 
 
 def CreateLocationsGroupClass(name, base, node):
-
-    if node is not None and node.parametrized():
-        groupName = node.group()['name']
-        if len(node.group()['values']) > 1:
-            params = LOC_SECTION_RESTRICTION_TAG_ELEMENT % ({'name': groupName,
-                                                             'opt': 'use="required"',
-                                                             'min': node.group()['values'][0],
-                                                             'max': node.group()['values'][-1]
-                                                             }
-                                                            )
-            attributes = {'name': str(base.__name__),
-                          'attributes': params
-                          }
-        else:
-            attributes = {'name': str(base.__name__),
-                          'attributes': LOC_SECTION_TAG_ELEMENT % (groupName, 'xsd:integer', 'use="required"')}
-
-        xsd = XSD_LOCATIONS_GROUP % attributes
-        NewGroup = type(str(base.__name__) + str(name) + node.name(), (base,), {'XSD': xsd, })
+    """
+    Create group location class
+    :param name: Name of location group
+    :param base: Base class of location group
+    :param node: Parent node of location class
+    :return: Prepared XSD class for location group
+    """
+    if node and node.parametrized():
+        NewGroup = PrepareParametrizedXSDNode(name, base, node)
     else:
         NewGroup = base
         setattr(NewGroup, 'XSD', None)
@@ -152,7 +186,25 @@ def CreateLocationsGroupClass(name, base, node):
     return NewGroup
 
 
+def CreateGroupNode(node, group, name):
+    if group.parametrized() or group.hasParametrized():
+        groupClass = CreateLocationsGroupClass(name, YAPLCTLocationsGroup, group)
+
+    if group.parametrized():
+        grp = (group.name(), groupClass, group.name())
+        if grp not in node.CTNChildrenTypes:
+            node.CTNChildrenTypes.append(grp)
+    elif group.hasParametrized():
+        params = JoinParameters(group.parameters())
+        for s in params:
+            sName = '%s.%s' % (group.name(), '.'.join(str(x) for x in s))
+            grp = (sName, groupClass, sName)
+            if grp not in node.CTNChildrenTypes:
+                node.CTNChildrenTypes.append(grp)
+
+
 class YAPLCTLocationsGroup(object):
+
     EditorType = ConfTreeNodeEditor
 
     XSD = None
@@ -170,23 +222,25 @@ class YAPLCTLocationsGroup(object):
             self.YAPLCParser = parser
 
         # let's parse some staff
-        group = parser.getgroup(name)
+        if name.find('.') > 0:
+            group = parser.getgroup(name[:name.find('.')])
+        else:
+            group = parser.getgroup(name)
 
         if group is None:
             raise ParseError("Group %s is None" % name)
 
-        # fill with groups
         for sg in group.children():
-            groupClass = CreateLocationsGroupClass(name, YAPLCTLocationsGroup, sg)
-            grp = (sg.name(), groupClass, sg.name())
-            if grp not in self.CTNChildrenTypes:
-                self.CTNChildrenTypes.append(grp)
+            CreateGroupNode(self, sg, name)
 
         # fill with locations
         for loc in group.locations():
             if loc.parametrized():
                 locClass = CreateLocationClass(name, YAPLCTLocation, loc)
-                ll = (loc.name(), locClass, loc.name())
+                if loc.descriptive():
+                    ll = (loc.descriptive(), locClass, loc.name())
+                else:
+                    ll = (loc.name(), locClass, loc.name())
                 if ll not in self.CTNChildrenTypes:
                     self.CTNChildrenTypes.append(ll)
 
@@ -199,11 +253,6 @@ class YAPLConfigFile(CodeFile):
     YAPLC Template Configuration file representation class
     Creates instance of root YAPLC node and nested child nodes, that represents groups and locations.
     """
-    # XSD = """<?xml version="1.0" encoding="ISO-8859-1" ?>
-    # <xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema">
-    #   <xsd:element name="YAPLCExtension" type="xsd:anyType" />
-    # </xsd:schema>
-    # """
 
     CODEFILE_NAME = "YAPLCFile"
     SECTIONS_NAMES = ["globals",
@@ -256,24 +305,22 @@ class YAPLConfigFile(CodeFile):
             if not os.path.isfile(self.ConfigTemplatePath):
                 Warn(None, _("Target doesn't support YAPLC features."), _("Warning"))
                 self.GetCTRoot().logger.write_error(
-                    _("Couldn't create %s node.") % self.CTNName())
+                    _("Couldn't create %s node.\n") % self.CTNName())
             else:
                 try:
                     error = None
                     # let's add template variables if we start first time
                     if self.ConfigTemplatePath is not None:
-                        try:
-                            self.YAPLCParser = YAPLCConfigParser()
-                            self.YAPLCParser.fparse(self.ConfigTemplatePath)
-                            self.FillFromTemplate()
-                        except ParseError as pe:
-                            self.GetCTRoot().logger.write_error(
-                                _("Couldn't read %s file because: %s") % self.CTNName() % pe.message())
-                            error = unicode(pe.message())
-
+                        self.YAPLCParser = YAPLCConfigParser()
+                        self.YAPLCParser.fparse(self.ConfigTemplatePath)
+                        self.FillFromTemplate()
                     else:
-                        self.GetCTRoot().logger.write_error(_("Couldn't load templates path for target %s") %
+                        self.GetCTRoot().logger.write_error(_("Couldn't load templates path for target %s\n") %
                                                             parent.GetTarget().getcontent().getLocalTag())
+                except ParseError as pe:
+                    self.GetCTRoot().logger.write_error(
+                        _("Couldn't read %s file because: %s\n") % (self.CTNName(), pe.message()))
+                    error = unicode(pe.message())
 
                 except Exception, exc:
                     error = unicode(exc)
@@ -282,15 +329,9 @@ class YAPLConfigFile(CodeFile):
                     self.GetCTRoot().logger.write_error(
                         _("Couldn't import old %s file.") % self.CTNName())
 
-    def FillFromTemplate(self, ):
+    def FillFromTemplate(self):
         for group in self.YAPLCParser.groups():
-
-            if group.parametrized() or group.hasParametrized():
-                NewGroup = CreateLocationsGroupClass('YAPLCTLocationsGroup', YAPLCTLocationsGroup, None)
-
-                g = (group.name(), NewGroup, group.name())
-                if g not in self.CTNChildrenTypes:
-                    self.CTNChildrenTypes.append(g)
+            CreateGroupNode(self, group, 'YAPLCTLocationsGroup')
 
     def GetBaseTypes(self):
         return self.GetCTRoot().GetBaseTypes()
@@ -307,100 +348,165 @@ class YAPLConfigFile(CodeFile):
     def CodeFileName(self):
         return os.path.join(self.CTNPath(), "yaplcconfig.xml")
 
-    def GetLocationsForGroup(self, group, parser, parent=None):
+    def FindParametrizedGroupParameters(self, name, baseNode=None):
+        result = dict()
+
+        if not baseNode:
+            baseNode = self
+
+        for child in baseNode.IECSortedChildren():
+            if child.CTNType == name:
+                grp = self.YAPLCParser.getgroup(child.CTNType)
+                if grp is not None:
+                    if grp.parametrized():
+                        for p in grp.parameters():
+                            v = getattr(child.YAPLCTLocationsGroup, p['name'])
+                            if v is not None:
+                                result[p['name']] = v
+                return result
+            else:
+                result = self.FindParametrizedGroupParameters(name, child)
+
+        return result
+
+    def GetLocationsForGroup(self, group, parser, parent=None, args=[]):
         locations = []
 
         for grp in group.children():
-            if grp.parametrized():
-                if parent is not None:
-                    result = filter(lambda x: grp.name() == x['name'], parent['children'])
-                    if len(result) > 0:
-                        result[0]['children'] += self.GetLocationsForGroup(grp, parser, result[0])
-                    continue
+            if parent:
+                if grp.parametrized():
+                    result = filter(lambda x: x['name'].startswith(grp.name()), parent['children'])
+                    if result:
+                        lst = list(args)
+                        lst.append(result[0]['location'])   # Add my current location
+                        result[0]['children'] += self.GetLocationsForGroup(grp, parser, result[0], lst)
                 else:
+                    combined = JoinParameters(grp.parameters())
+
+                    for line in combined:
+                        groupLocation = '.'.join(str(x) for x in line)
+                        lname = '{0}.{1}'.format(grp.name(), groupLocation)
+
+                        locations.append({
+                            "name": lname,
+                            "type": LOCATION_GROUP,
+                            "size": 0,
+                            "IEC_type": '',
+                            "var_name": '',
+                            "location": "%s" % groupLocation,
+                            "description": "",
+                            "children": self.GetLocationsForGroup(grp, parser, None, args + list(line))})
+            else:
+                if grp.parametrized():  # Parametrized groups evaluated here
                     continue
 
-            locations.append({
-                "name": grp.name(),
-                "type": LOCATION_GROUP,
-                "size": 0,
-                "IEC_type": '',
-                "var_name": '',
-                "location": "%s" % grp.group(),
-                "description": "",
-                "children": self.GetLocationsForGroup(grp, parser)})
+                combined = JoinParameters(grp.parameters())
 
-        for loc in group.locations():
-            if loc.parametrized():
-                continue
+                for line in combined:
+                    groupLocation = '.'.join(str(x) for x in line)
+                    lname = '{0}.{1}'.format(grp.name(), groupLocation)
 
-            params = loc.parameters().values()
-            for value in params[0]['values']:
-                if group.parametrized():
-                    lname = '{0}.{1}.{2}'.format(loc.name(), parent['location'], value)
-                    location = '{0}.{1}.{2}'.format(loc.name()[1:], parent['location'], value)
-                else:
-                    lname = '{0}.{1}'.format(loc.name(), value)
-                    location = '{0}{1}.{2}'.format(loc.datatype(), group.group(), value)
+                    locations.append({
+                        "name": lname,
+                        "type": LOCATION_GROUP,
+                        "size": 0,
+                        "IEC_type": '',
+                        "var_name": '',
+                        "location": "%s" % groupLocation,
+                        "description": "",
+                        "children": self.GetLocationsForGroup(grp, parser, None, args + list(line))})
 
-                for p in params[1:]:
-                    lname += '.{0}'.format(p['values'][0])
-                    location += '.{0}'.format(p['values'][0])
+        # Locations processing
+        if group.parametrized() and not parent:
+            pass
+        else:
 
-                locations.append({
-                    "name": '%%%s' % lname,
-                    "type": self.LocationTypes[loc.type()],
-                    "size": self.SizeConversion[loc.datatype()],
-                    "IEC_type": self.IECTypes[loc.datatype()],
-                    "var_name": '_%s' % lname.replace('.', '_'),
-                    "location": location,
-                    "description": "",
-                    "children": []})
+            for loc in group.locations():
+                if loc.parametrized():
+                    continue
+
+                combLocs = JoinParameters(loc.parameters())
+
+                for line in combLocs:
+                    indexes = args + list(line)
+                    lname = '{0}'.format(loc.name() + '.'.join(str(x) for x in indexes))
+                    location = lname[1:]
+
+                    locations.append({
+                        "name": '%%%s' % lname,
+                        "type": self.LocationTypes[loc.type()],
+                        "size": self.SizeConversion[loc.datatype()],
+                        "IEC_type": self.IECTypes[loc.datatype()],
+                        "var_name": '_%s' % lname.replace('.', '_'),
+                        "location": location,
+                        "description": "",
+                        "children": []})
 
         return locations
 
     def GetLocationsForNode(self, group, parser, node, args=[]):
-
         locations = []
-        for child in node.IECSortedChildren():
-            grp = parser.getgroup(child.CTNType)
-            if grp is not None:
-                gids = []
-                if grp.parametrized():
-                        v = getattr(child.YAPLCTLocationsGroup, grp.group()['name'])
-                        if v is not None:
-                            gids.append(str(v))
-                else:
-                    gids.append(str(grp.group()))
 
-                locations.append({
-                    "name": child.CTNType,
-                    "type": LOCATION_GROUP,
-                    "size": 0,
-                    "IEC_type": '',
-                    "var_name": '',
-                    "location": "%s" % ".".join(gids),
-                    "description": "",
-                    "children": self.GetLocationsForNode(grp, parser, child, gids)})
+        for child in node.IECSortedChildren():
+            if child.CTNType.find('.') > 0:
+                name = child.CTNType[:child.CTNType.find('.')]
+                suffix = child.CTNType[child.CTNType.find('.') + 1:]
             else:
-                # this is a location
+                name = child.CTNType
+            grp = parser.getgroup(name)
+            if grp:
+                gids = dict()
+                if grp.parametrized():
+                    for p in grp.parameters():
+                        if not p['name']:
+                            continue
+                        v = getattr(child.YAPLCTLocationsGroup, p['name'])
+                        if v is not None:
+                            gids[p['name']] = v
+
+                if gids:
+                    groups = JoinParameters(grp.parameters(), gids)
+                else:
+                    groups = list()
+                    groups.append(suffix.split('.'))
+
+                for g in groups:
+                    subLocations = self.GetLocationsForNode(grp, parser, child, args + list(g))
+
+                    if subLocations or grp.parametrized():
+                        locationString = '%s' % '.'.join(str(x) for x in g)
+                        locations.append({
+                            "name": '%s.%s' % (name, locationString),
+                            "type": LOCATION_GROUP,
+                            "size": 0,
+                            "IEC_type": '',
+                            "var_name": '',
+                            "location": "%s" % locationString,
+                            "description": "",
+                            "children": subLocations})
+            else:
                 loc = group.getlocation(child.CTNType)
-                locs = []
-                for p in loc.parameters().values():
-                    v = getattr(child.YAPLCTLocation, p['name'])
-                    locs.append(str(v))
-                idx = args + locs
-                vname = '_%s%s' % (child.CTNType, '.' + '.'.join(idx))
-                vname = vname.replace('.', '_')
-                locations.append({
-                    "name": '%%%s' % (str(child.CTNType) + '.' + '.'.join(idx)),
-                    "type": self.LocationTypes[loc.type()],
-                    "size": self.SizeConversion[loc.datatype()],
-                    "IEC_type": self.IECTypes[loc.datatype()],
-                    "var_name": vname,
-                    "location": '%s%s' % (loc.name()[1:], '.' + '.'.join(idx)),
-                    "description": "",
-                    "children": []})
+                locs = dict()
+                for p in loc.parameters():
+                    if p['name']:
+                        v = getattr(child.YAPLCTLocation, p['name'])
+                        locs[p['name']] = v
+
+                params = JoinParameters(loc.parameters(), locs)
+
+                for pp in params:
+                    idx = args + list(pp)
+                    vname = '_%s%s' % (loc.name(), '.'.join(str(x) for x in idx))
+                    vname = vname.replace('.', '_')
+                    locations.append({
+                        "name": '%%%s' % (str(loc.name()) + '.'.join(str(x) for x in idx)),
+                        "type": self.LocationTypes[loc.type()],
+                        "size": self.SizeConversion[loc.datatype()],
+                        "IEC_type": self.IECTypes[loc.datatype()],
+                        "var_name": vname,
+                        "location": '%s%s' % (loc.name()[1:], '.'.join(str(x) for x in idx)),
+                        "description": "",
+                        "children": []})
 
         return locations
 
@@ -412,44 +518,32 @@ class YAPLConfigFile(CodeFile):
         if self.YAPLCParser is not None:
             parser = self.YAPLCParser
 
-            # first add parametrized
-            for child in self.IECSortedChildren():
-                group = parser.getgroup(child.CTNType)
-                if group is not None:
-                    gids = []
-                    if group.parametrized():
-                        pass
-                    else:
-                        gids.append(group.group())
+            locations += self.GetLocationsForNode(None, parser, self)
+
+            # extract static locations and groups
+            for group in parser.groups():
+                # if group.parametrized():
+                #     continue
+
+                result = filter(lambda x: x['name'].startswith(group.name()), locations)
+                if result:
+                    lst = list()
+                    lst.append(result[0]['location'])
+                    result[0]['children'] += self.GetLocationsForGroup(group, parser, result[0], lst)
+                else:
+                    groups = JoinParameters(group.parameters())
+
+                    for g in groups:
+                        groupLocation = "%s" % '.'.join(str(x) for x in g)
                         locations.append({
-                            "name": group.name(),
+                            "name": group.name() + '.' + groupLocation,
                             "type": LOCATION_GROUP,
                             "size": 0,
                             "IEC_type": '',
                             "var_name": '',
-                            "location": "%s" % group.group(),
+                            "location": groupLocation,
                             "description": "",
-                            "children": self.GetLocationsForNode(group, parser, child)})
-
-            # extract static locations and groups
-            for group in parser.groups():
-
-                if group.parametrized():
-                    continue
-
-                result = filter(lambda x: group.name() == x['name'], locations)
-                if len(result) > 0:
-                    result[0]['children'] += self.GetLocationsForGroup(group, parser, result[0])
-                else:
-                    locations.append({
-                        "name": group.name(),
-                        "type": LOCATION_GROUP,
-                        "size": 0,
-                        "IEC_type": '',
-                        "var_name": '',
-                        "location": "%s" % group.group(),
-                        "description": "",
-                        "children": self.GetLocationsForGroup(group, parser)})
+                            "children": self.GetLocationsForGroup(group, parser, None, list(g))})
 
         return {"name": self.BaseParams.getName(),
                 "type": LOCATION_CONFNODE,
@@ -539,3 +633,33 @@ class YAPLConfigFile(CodeFile):
         first = self.CodeFileBuffer.IsFirst() and not self.Buffering
         last = self.CodeFileBuffer.IsLast()
         return not first, not last
+
+
+def JoinParameters(parameters, args={}):
+    lists = list()
+    for p in parameters:
+        if p['name'] and p['name'] in args:
+            lst = list()
+            lst.append(args[p['name']])
+            lists.append(lst)
+        else:
+            if p['type'] == 'Number':
+                # add value to all lines
+                lst = list()
+                lst.append(p['value'])
+                lists.append(lst)
+
+            elif p['type'] == 'Range':
+                lst = list()
+                for v in range(p['min'], p['max'] + 1):
+                    lst.append(v)
+
+                lists.append(lst)
+
+            elif p['type'] == 'Items':
+                lst = list()
+                for v in p['items']:
+                    lst.append(v)
+                lists.append(lst)
+
+    return product(*lists)
