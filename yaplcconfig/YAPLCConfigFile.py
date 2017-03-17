@@ -387,15 +387,22 @@ class YAPLConfigFile(CodeFile):
                         groupLocation = '.'.join(str(x) for x in line)
                         lname = '{0}.{1}'.format(grp.name(), groupLocation)
 
-                        locations.append({
-                            "name": lname,
-                            "type": LOCATION_GROUP,
-                            "size": 0,
-                            "IEC_type": '',
-                            "var_name": '',
-                            "location": "%s" % groupLocation,
-                            "description": "",
-                            "children": self.GetLocationsForGroup(grp, parser, None, args + list(line))})
+                        result = filter(lambda x: x['name'].startswith(lname), parent['children'])
+                        if result:
+                            lst = list()
+                            lst.append(result[0]['location'])
+                            result[0]['children'] += self.GetLocationsForGroup(grp, parser, result[0], lst)
+                        else:
+                            locations.append({
+                                "name": lname,
+                                "type": LOCATION_GROUP,
+                                "size": 0,
+                                "IEC_type": '',
+                                "var_name": '',
+                                "location": "%s" % groupLocation,
+                                "description": "",
+                                "children": self.GetLocationsForGroup(grp, parser, None, args + list(line))})
+
             else:
                 if grp.parametrized():  # Parametrized groups evaluated here
                     continue
