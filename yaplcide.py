@@ -131,6 +131,7 @@ features.catalog.append(('yaplcconfig',
                          'yaplcconfig.yaplcconfig.YAPLCNodeConfig'))
 
 
+from BeremizIDE import *
 from Beremiz import *
 
 
