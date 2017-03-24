@@ -41,6 +41,9 @@ class YAPLCIdeLauncher(BeremizIDELauncher):
         targets.toolchains.update(yaplctargets.toolchains)
         targets.targets.update(yaplctargets.yaplctargets)
 
+        features.libraries = [
+	    ('Native', 'NativeLib.NativeLibrary')]
+        
         features.catalog.append(('yaplcconfig',
                                  _('YAPLC Configuration Node'),
                                  _('Adds template located variables'),
