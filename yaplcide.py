@@ -25,7 +25,7 @@ class YAPLCIdeLauncher(BeremizIDELauncher):
         BeremizIDELauncher.__init__(self)
         self.yaplc_dir = os.path.dirname(os.path.realpath(__file__))
         self.splashPath = self.YApath("images", "splash.png")
-        self.extensions.append(os.path.realpath('yaplcext.py'))
+        self.extensions.append(self.YApath("yaplcext.py"))
 
         import features
         # Let's import nucleron yaplcconnectors
