@@ -1,6 +1,0 @@
-
-                  <xsd:element name="yaplcF2k64">
-                    <xsd:complexType>
-                      %(toolchain_yaplc)s
-                    </xsd:complexType>
-                  </xsd:element>

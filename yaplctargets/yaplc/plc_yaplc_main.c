@@ -176,6 +176,8 @@ __attribute__ ((section(".plc_app_abi_sec"))) plc_app_abi_t plc_yaplc_app =
     .rte_ver_major = 2,
     .rte_ver_minor = 0,
     .rte_ver_patch = 0,
+    
+    .hw_id = 227,
     //IO manager interface
     .l_tab = &plc_loc_table[0],
     .w_tab = &plc_loc_weigth[0],
