@@ -424,12 +424,15 @@ class YAPLCConfigParser:
     def getgroup(self, name):
 
         def findgroup(name, group):
-            for g in group.children():
-                if len(g.children()) > 0:
-                    return findgroup(name, g)
+            if name == group.name():
+                return group
 
+            for g in group.children():
                 if g.name() == name:
                     return g
+
+                if len(g.children()) > 0:
+                    return findgroup(name, g)
 
             return None
 

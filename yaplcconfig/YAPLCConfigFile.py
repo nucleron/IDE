@@ -391,7 +391,7 @@ class YAPLConfigFile(CodeFile):
                         if result:
                             lst = list()
                             lst.append(result[0]['location'])
-                            result[0]['children'] += self.GetLocationsForGroup(grp, parser, result[0], lst)
+                            result[0]['children'] += self.GetLocationsForGroup(grp, parser, result[0], args + lst)
                         else:
                             locations.append({
                                 "name": lname,
