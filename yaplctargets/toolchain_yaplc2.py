@@ -1,12 +1,12 @@
 import os, sys
 from util.ProcessLogger import ProcessLogger
-from toolchain_gcc import toolchain_gcc_base
+from toolchain_gcc import toolchain_gcc
 
 toolchain_dir  = os.path.dirname(os.path.realpath(__file__))
 base_dir       = os.path.join(os.path.join(toolchain_dir, ".."), "..")
 runtime_dir    = os.path.join(os.path.join(base_dir, "RTE"), "src")
 
-class toolchain_yaplc2(toolchain_gcc_base):
+class toolchain_yaplc2(toolchain_gcc):
     def __init__(self, CTRInstance):
         self.dev_family       = "NO_DEVICE"
         self.load_addr        = "0"
@@ -16,7 +16,7 @@ class toolchain_yaplc2(toolchain_gcc_base):
         self.linker_script    = ""
         
         self.extension        = ".elf"
-        toolchain_gcc_base.__init__(self, CTRInstance)
+        toolchain_gcc.__init__(self, CTRInstance)
 
     def getBuilderCFLAGS(self):
         """
@@ -51,13 +51,16 @@ class toolchain_yaplc2(toolchain_gcc_base):
         Returns linker
         """
         return self.toolchain_prefix + "g++"
+        
+    def calc_md5(self):
+        return toolchain_gcc.calc_source_md5(self)
 
     def build(self):
       
         #Build project
-        self.cflags = ["-DPLC_MD5=" + toolchain_gcc_base.calc_md5(self)]
+        self.cflags = ["-DPLC_MD5=" + self.calc_md5()]
         
-        if toolchain_gcc_base.build(self):
+        if toolchain_gcc.build(self):
 	    #Run objcopy on success
 	    self.CTRInstance.logger.write("   [OBJCOPY]  " + self.exe +" -> " + self.exe + ".hex\n")
 	    

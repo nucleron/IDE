@@ -25,19 +25,10 @@
 import os, re, operator
 from util.ProcessLogger import ProcessLogger
 import hashlib
-import exceptions
 
 includes_re =  re.compile('\s*#include\s*["<]([^">]*)[">].*')
 
-class toolchain_gcc_error(exceptions.Exception):
-        """Exception class"""
-        def __init__(self, msg):
-                self.msg = msg
-
-        def __str__(self):
-                return "Toolchain exception: " + str(self.msg)
-
-class toolchain_gcc_base():
+class toolchain_gcc():
     """
     This abstract class contains GCC specific code.
     It cannot be used as this and should be inherited in a target specific
@@ -50,33 +41,34 @@ class toolchain_gcc_base():
     
     def getBuilderCFLAGS(self):
         """
-        Must return list of builder specific CFLAGS
+        Returns list of builder specific CFLAGS
         """
-        raise toolchain_gcc_error("Method getBuilderCFLAGS must be defined!")
+        return [self.CTRInstance.GetTarget().getcontent().getCFLAGS()]
 
     def getBuilderLDFLAGS(self):
         """
-        Must return list of builder specific LDFLAGS
+        Returns list of builder specific LDFLAGS
         """
-        raise toolchain_gcc_error("Method getBuilderLDFLAGS must be defined!")
-      
+        return self.CTRInstance.LDFLAGS + \
+               [self.CTRInstance.GetTarget().getcontent().getLDFLAGS()]
+
     def getCompiler(self):
         """
-        Must return compiler command
+        Returns compiler
         """
-        raise toolchain_gcc_error("Method getCompiler must be defined!")
+        return self.CTRInstance.GetTarget().getcontent().getCompiler()
       
     def getLinker(self):
         """
-        Must return linker command
+        Returns linker
         """
-        raise toolchain_gcc_error("Method getLinker must be defined!")
-
+        return self.CTRInstance.GetTarget().getcontent().getLinker()
+               
     def GetBinaryCode(self):
-        """
-        Must return bunary code
-        """
-        raise toolchain_gcc_error("Method GetBinaryCode must be defined!")
+        try:
+            return open(self.exe_path, "rb").read()
+        except Exception, e:
+            return None
         
     def _GetMD5FileName(self):
         return os.path.join(self.buildpath, "lastbuildPLC.md5")
@@ -143,7 +135,7 @@ class toolchain_gcc_base():
         # TODO detect cicular deps.
         return reduce(operator.and_, map(self.check_and_update_hash_and_deps, deps), match)
         
-    def calc_md5(self):
+    def calc_source_md5(self):
         wholesrcdata = ""
         for Location, CFilesAndCFLAGS, DoCalls in self.CTRInstance.LocationCFilesAndCFLAGS:
             # Get CFiles list to give it to makefile
@@ -151,7 +143,10 @@ class toolchain_gcc_base():
                 CFileName = os.path.basename(CFile)
                 wholesrcdata += self.concat_deps(CFileName)
         return hashlib.md5(wholesrcdata).hexdigest()
-        
+    
+    def calc_md5(self):
+        return hashlib.md5(self.GetBinaryCode()).hexdigest()
+    
     def build(self):
         # Retrieve compiler and linker
         self.compiler = self.getCompiler()
@@ -187,8 +182,8 @@ class toolchain_gcc_base():
                         
                         status, result, err_result = ProcessLogger(
                                self.CTRInstance.logger,
-                               "\"%s\" %s %s -c \"%s\" -o \"%s\""%
-                                   (self.compiler, Builder_CFLAGS, CFLAGS, CFile, objectfilename)
+                               "\"%s\" -c \"%s\" -o \"%s\" %s %s"%
+                                   (self.compiler, CFile, objectfilename, Builder_CFLAGS, CFLAGS)
                                ).spin()
 
                         if status :
@@ -238,43 +233,4 @@ class toolchain_gcc_base():
         f.close()
         
         return True
-
-
-class toolchain_gcc(toolchain_gcc_base):
-    """
-    This abstract class contains GCC specific code.
-    It cannot be used as this and should be inherited in a target specific
-    class such as target_linux or target_win32
-    """
-    
-    def getBuilderCFLAGS(self):
-        """
-        Returns list of builder specific CFLAGS
-        """
-        return [self.CTRInstance.GetTarget().getcontent().getCFLAGS()]
-
-    def getBuilderLDFLAGS(self):
-        """
-        Returns list of builder specific LDFLAGS
-        """
-        return self.CTRInstance.LDFLAGS + \
-               [self.CTRInstance.GetTarget().getcontent().getLDFLAGS()]
-
-    def getCompiler(self):
-        """
-        Returns compiler
-        """
-        return self.CTRInstance.GetTarget().getcontent().getCompiler()
-      
-    def getLinker(self):
-        """
-        Returns linker
-        """
-        return self.CTRInstance.GetTarget().getcontent().getLinker()
-               
-    def GetBinaryCode(self):
-        try:
-            return open(self.exe_path, "rb").read()
-        except Exception, e:
-            return None
 
