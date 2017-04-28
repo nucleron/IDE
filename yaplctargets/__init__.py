@@ -24,8 +24,7 @@ yaplctargets = dict([(name, {"xsd":path.join(_base_path, name, "XSD"),
                     if path.isdir(path.join(_base_path, name))
                        and not name.startswith("__")])
 
-toolchains = {"yaplc": path.join(_base_path, "XSD_toolchain_yaplc"),
-              "yaplc2":  path.join(_base_path, "XSD_toolchain_yaplc2")}
+toolchains = {"yaplc":  path.join(_base_path, "XSD_toolchain_yaplc")}
 
 def GetBuilder(targetname):
     return yaplctargets[targetname]["class"]()

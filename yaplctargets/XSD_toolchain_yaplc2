@@ -1,3 +1,0 @@
-
-          <xsd:attribute name="CFLAGS" type="xsd:string" use="optional" default=""/>
-          <xsd:attribute name="LDFLAGS" type="xsd:string" use="optional" default=""/>

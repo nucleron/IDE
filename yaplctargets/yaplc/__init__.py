@@ -1,14 +1,14 @@
 import os, sys
-from yaplctargets.toolchain_yaplc2 import toolchain_yaplc2
+from yaplctargets.toolchain_yaplc import toolchain_yaplc
 
 target_dir = os.path.dirname(os.path.realpath(__file__))
 base_dir = os.path.join(os.path.join(os.path.join(target_dir, ".."), ".."), "..")
 plc_rt_dir = os.path.join(os.path.join(base_dir, "RTE"), "src")
 
-class yaplc_target(toolchain_yaplc2):
+class yaplc_target(toolchain_yaplc):
     def __init__(self, CTRInstance):
         
-        toolchain_yaplc2.__init__(self, CTRInstance)
+        toolchain_yaplc.__init__(self, CTRInstance)
         
         self.dev_family       = "STM32F4"
         self.load_addr        = "0x08008000"
