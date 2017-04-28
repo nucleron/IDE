@@ -1,6 +1,6 @@
 
                   <xsd:element name="nuc251">
                     <xsd:complexType>
-                      %(toolchain_yaplc)s
+                      %(toolchain_yaplc2)s
                     </xsd:complexType>
                   </xsd:element>

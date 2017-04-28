@@ -119,10 +119,13 @@ uint32_t plc_loc_weigth[PLC_LOC_TBL_SIZE];
 #ifndef PLC_MD5
 #error "PLC_MD5 must be defined!!!"
 #endif
+
+#define PLC_MD5_STR(a) # a
+#define PLC_MD5_STR2(a) PLC_MD5_STR(a)
 //App ABI, placed after .plc_app_abi_sec
-__attribute__ ((section(".plc_md5_sec"))) char plc_md5[] = PLC_MD5;
+__attribute__ ((section(".plc_md5_sec"))) char plc_md5[] = PLC_MD5_STR2(PLC_MD5);
 //App ABI, placed at the .text end
-__attribute__ ((section(".plc_check_sec"))) char plc_check_md5[] = PLC_MD5;
+__attribute__ ((section(".plc_check_sec"))) char plc_check_md5[] = PLC_MD5_STR2(PLC_MD5);
 
 //Linker added symbols
 extern uint32_t _plc_data_loadaddr, _plc_data_start, _plc_data_end, _plc_bss_end, _plc_sstart;
@@ -173,11 +176,11 @@ __attribute__ ((section(".plc_app_abi_sec"))) plc_app_abi_t plc_yaplc_app =
     .check_id  = plc_check_md5,
 
     //Must be run on compatible RTE
-    .rte_ver_major = 3,
+    .rte_ver_major = 4,
     .rte_ver_minor = 0,
     .rte_ver_patch = 0,
 
-    .hw_id = 2470,
+    .hw_id = 2471,
     //IO manager interface
     .l_tab = &plc_loc_table[0],
     .w_tab = &plc_loc_weigth[0],
