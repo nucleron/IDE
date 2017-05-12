@@ -66,6 +66,11 @@ class toolchain_yaplc(toolchain_gcc):
 	    
 	    objcpy = [self.toolchain_prefix + "objcopy", "--change-address", self.load_addr,  "-O", "ihex", self.exe_path, self.exe_path + ".hex"]
 	    ProcessLogger( self.CTRInstance.logger, objcpy).spin()
+	    
+	    self.CTRInstance.logger.write("Output size:\n")
+	    
+	    size = [self.toolchain_prefix + "size", self.exe_path]
+	    ProcessLogger( self.CTRInstance.logger, size).spin()
             
             return True
         
