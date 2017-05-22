@@ -12,10 +12,10 @@ gettext.install('yaplcide')  # this is a dummy to prevent gettext falling down
 
 _dist_folder = os.path.split(sys.path[0])[0]
 _beremiz_folder = os.path.join(_dist_folder, "beremiz")
-sys.path.append(_beremiz_folder)
+#sys.path.append(_beremiz_folder)
+sys.path.insert(1,_beremiz_folder)
 
 from Beremiz import *
-
 
 class YAPLCIdeLauncher(BeremizIDELauncher):
     """
