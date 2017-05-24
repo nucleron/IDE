@@ -11,10 +11,15 @@ class toolchain_yaplc(toolchain_gcc):
         self.dev_family       = "NO_DEVICE"
         self.load_addr        = "0"
         self.runtime_addr     = "0"
-        self.base_flags       = ["-mthumb", "-mcpu=cortex-m3", "-O0", "-g3"]
-        self.toolchain_prefix = "arm-none-eabi-"
-        self.linker_script    = ""
+        self.base_flags       = ["-mthumb", "-mcpu=cortex-m3", "-g3"]
         
+        if os.name in ("nt", "ce"):
+	    prefix_dir    = os.path.join(os.path.join(base_dir, "gnu-arm-embedded"), "bin")
+            self.toolchain_prefix = prefix_dir + "\\arm-none-eabi-"
+        else:
+            self.toolchain_prefix = "arm-none-eabi-"
+            
+        self.linker_script    = ""
         self.extension        = ".elf"
         toolchain_gcc.__init__(self, CTRInstance)
 

@@ -13,7 +13,5 @@ class nuc242_target(toolchain_yaplc_stm32):
         self.dev_family       = "STM32F1"
         self.load_addr        = "0x08008000"
         self.runtime_addr     = "0x08000150"
-        self.base_flags       = ["-mthumb", "-mcpu=cortex-m3", "-O0", "-g3"]
-        self.toolchain_prefix = "arm-none-eabi-"
         self.linker_script    = os.path.join(os.path.join(os.path.join(plc_rt_dir, "bsp"), "nuc-242"), "stm32f103xC-app.ld")
         
