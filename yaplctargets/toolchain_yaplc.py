@@ -42,7 +42,7 @@ class toolchain_yaplc(toolchain_gcc):
         flags = self.base_flags
         flags += ["-Xlinker", "-T \"" + self.linker_script + "\""]
         flags += ["-Wl,--gc-sections", "-nostartfiles"]
-        flags += ["-Wl,-Map=" + self.exe_path + ".map"]
+        #flags += ["-Wl,-Map=\"" + self.exe_path + ".map\""]
         return flags + [self.CTRInstance.GetTarget().getcontent().getLDFLAGS()]
 
     def getCompiler(self):
