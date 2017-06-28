@@ -272,6 +272,8 @@ if __name__ == "__main__":
         lib_ext = ".so"
 
     TstLib = os.path.dirname(os.path.realpath(__file__)) + "/../../../YaPySerial/bin/libYaPySerial" + lib_ext
+    if (os.name == 'posix' and not os.path.isfile(TstLib)):
+        TstLib = "libYaPySerial" + lib_ext
 
     TstRoot = TestRoot()
     print "Construct PLC..."
