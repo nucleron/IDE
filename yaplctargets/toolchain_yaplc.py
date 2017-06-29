@@ -4,9 +4,9 @@ from targets.toolchain_gcc import toolchain_gcc
 
 toolchain_dir  = os.path.dirname(os.path.realpath(__file__))
 base_dir       = os.path.join(os.path.join(toolchain_dir, ".."), "..")
-runtime_dir    = os.path.join(os.path.join(base_dir, "RTE"), "src")
-if (os.name == 'posix' and not os.path.isfile(runtime_dir)):
-    runtime_dir = os.environ["HOME"]+"/YAPLC/RTE/src"
+plc_rt_dir    = os.path.join(os.path.join(base_dir, "RTE"), "src")
+if (os.name == 'posix' and not os.path.isfile(plc_rt_dir)):
+    plc_rt_dir = os.environ["HOME"]+"/YAPLC/RTE/src"
 
 class toolchain_yaplc(toolchain_gcc):
     def __init__(self, CTRInstance):
@@ -32,7 +32,7 @@ class toolchain_yaplc(toolchain_gcc):
         flags = self.base_flags 
         flags += ["-std=gnu90", "-Wall", "-fdata-sections", "-ffunction-sections", "-fno-strict-aliasing"]
         flags += ["-D"+ self.dev_family] 
-        flags += ["-I\"" + runtime_dir + "\""]
+        flags += ["-I\"" + plc_rt_dir + "\""]
         flags += ["-DPLC_RTE_ADDR=" + self.runtime_addr]
         flags += self.cflags
         return flags + [self.CTRInstance.GetTarget().getcontent().getCFLAGS()]

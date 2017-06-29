@@ -1,5 +1,6 @@
 import os, sys
 from toolchain_yaplc import toolchain_yaplc
+from toolchain_yaplc import plc_rt_dir as plc_rt_dir
 
 toolchain_dir  = os.path.dirname(os.path.realpath(__file__))
 base_dir       = os.path.join(os.path.join(toolchain_dir, ".."), "..")
