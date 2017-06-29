@@ -40,5 +40,7 @@ def YAPLC_connector_factory(uri, confnodesroot):
         lib_ext = ".so"
 
     YaPySerialLib = os.path.dirname(os.path.realpath(__file__)) + "/../../../YaPySerial/bin/libYaPySerial" + lib_ext
+    if (os.name == 'posix' and not os.path.isfile(YaPySerialLib)):
+        YaPySerialLib = "libYaPySerial" + lib_ext
 
     return YAPLCObject(YaPySerialLib,confnodesroot,comportstr)

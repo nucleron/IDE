@@ -4,6 +4,8 @@ from yaplctargets.toolchain_yaplc_stm32 import toolchain_yaplc_stm32
 target_dir = os.path.dirname(os.path.realpath(__file__))
 base_dir = os.path.join(os.path.join(os.path.join(target_dir, ".."), ".."), "..")
 plc_rt_dir = os.path.join(os.path.join(base_dir, "RTE"), "src")
+if (os.name == 'posix' and not os.path.isfile(plc_rt_dir)):
+    plc_rt_dir = os.environ["HOME"]+"/YAPLC/RTE/src"
 
 class nuc247_target(toolchain_yaplc_stm32):
     def __init__(self, CTRInstance):

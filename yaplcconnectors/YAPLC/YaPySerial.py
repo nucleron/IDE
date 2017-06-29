@@ -147,6 +147,8 @@ if __name__ == "__main__":
         lib_ext = ".so"
 
     TestLib = os.path.dirname(os.path.realpath(__file__)) + "/../../../YaPySerial/bin/libYaPySerial" + lib_ext
+    if (os.name == 'posix' and not os.path.isfile(TestLib)):
+        TestLib = "libYaPySerial" + lib_ext
 
     TestSerial = YaPySerial( TestLib )
     TestSerial.Open( "COM256", 9600, "8N1", 2 )
